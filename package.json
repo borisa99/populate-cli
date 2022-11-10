@@ -15,6 +15,7 @@
     "figlet": "^1.5.2",
     "gradient-string": "^2.0.2",
     "inquirer": "^9.1.4",
+    "mysql": "^2.18.1",
     "nanospinner": "^1.1.0"
   }
 }
