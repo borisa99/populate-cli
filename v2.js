@@ -104,7 +104,7 @@ async function handleConfirm() {
   });
 
   const res = await axiosInstance.get(
-    `?locale=${localeFrom}&pagination[page]=1&pagination[pageSize]=1000`
+    `?locale=${localeFrom}&pagination[start]=0&pagination[limit]=-1`
   );
   const getPromises = [];
   res.data.data.map((resItem) => {
