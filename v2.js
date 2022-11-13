@@ -45,6 +45,7 @@ async function askAPIEndpoint() {
     type: "input",
     message: "Api Endpoint",
     default: "http://localhost:1337/api",
+    validate: requiredValidator,
   });
 
   apiEndpoint = answer.api_endpoint;
@@ -102,8 +103,9 @@ async function handleConfirm() {
     baseURL: apiEndpoint + `/${contentTitle}`,
   });
 
-  const res = await axiosInstance.get(`?locale=${localeFrom}`);
-
+  const res = await axiosInstance.get(
+    `?locale=${localeFrom}&pagination[page]=1&pagination[pageSize]=1000`
+  );
   const getPromises = [];
   res.data.data.map((resItem) => {
     const code = resItem.attributes.code;
@@ -117,36 +119,58 @@ async function handleConfirm() {
     process.exit(0);
   }
   const createPromises = [];
+  const results = await Promise.allSettled(getPromises);
 
-  Promise.allSettled(getPromises).then((results) => {
-    results.forEach((result) => {
-      const url = result.value.config.url;
-      const data = result.value.data.data;
+  const invalidResults = results.filter(
+    (result) => result.status !== "fulfilled"
+  );
+  if (invalidResults.length > 0) {
+    spinner.error({ text: `Error while fetching: ${contentTitle}` });
+    process.exit(1);
+  }
 
-      const locale = url.split("=")[1].substring(0, 2);
-      const code = url.split("=")[2];
+  results.forEach((result) => {
+    const url = result.value.config.url;
+    const data = result.value.data.data;
 
-      const entry = res.data.data.find((item) => item.attributes.code === code);
+    const locale = url.split("=")[1].substring(0, 2);
+    const code = url.split("=")[2];
 
-      if (data && data.length > 0) {
-        return;
-      } else {
-        createPromises.push(
-          axiosInstance.post(`/${entry.id}/localizations`, {
-            code: entry.attributes.code,
-            locale,
-          })
-        );
-      }
-    });
+    const entry = res.data.data.find((item) => item.attributes.code === code);
 
-    Promise.allSettled(createPromises)
-      .then(() => {
-        spinner.success({ text: "Success" });
-        process.exit(0);
-      })
-      .catch((err) => console.log(err));
+    if (data && data.length > 0) {
+      return;
+    } else {
+      createPromises.push(
+        axiosInstance.post(`/${entry.id}/localizations`, {
+          code: entry.attributes.code,
+          locale,
+        })
+      );
+    }
   });
+
+  const insertResults = await Promise.allSettled(createPromises);
+
+  const invalidInsertResults = insertResults.filter(
+    (result) => result.status !== "fulfilled"
+  );
+
+  if (invalidInsertResults.length > 0) {
+    spinner.error({
+      text: `Error while inserting: ${contentTitle}, ${JSON.stringify({
+        response: insertResults[0].reason?.response?.data,
+        url:
+          insertResults[0].reason?.config?.baseURL +
+          insertResults[0].reason?.config?.url,
+        data: insertResults[0].reason?.config?.data,
+      })}`,
+    });
+    process.exit(1);
+  } else {
+    spinner.success({ text: "Success" });
+    process.exit(0);
+  }
 }
 
 console.clear();
